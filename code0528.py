@@ -1,4 +1,3 @@
-아무말
 from __future__ import division
 import pygame
 import pygame_menu
@@ -34,8 +33,6 @@ start_img = pygame.transform.scale(start_img, (WIDTH, HEIGHT))
 manual_img = pygame.image.load("manual_img.png")
 manual_img = pygame.transform.scale(manual_img, (WIDTH, HEIGHT))
 
-enemy_shield_img = pygame.image.load("enemy_s.png")
-enemy_shield_img = pygame.transform.scale(enemy_shield_img, (40, 10))
 
 ######### 아이템 이미지
 items_set = {}
@@ -96,22 +93,32 @@ class Player(pygame.sprite.Sprite):
         self.rect.x += self.speedx
         self.rect.y += self.speedy
 
-    def shot(self):
+    def shot(self): ############레벨 1,2에서는 아래쪽 총알이 나오지 않도록 수정 필요
         now = pygame.time.get_ticks()
         if now - self.last_shot > self.shot_delay:
             self.last_shot = now
-            bullet = Bullet(self.rect.centerx, self.rect.top)
-            all_sprites.add(bullet)
-            bullets.add(bullet)
+            bullet_top = Bullet(self.rect.centerx, self.rect.top, 1) # 아래쪽 총알
+            all_sprites.add(bullet_top)
+            bullets.add(bullet_top)
+
+            bullet_bottom = Bullet(self.rect.centerx, self.rect.bottom, 2) # 위쪽 총알
+            all_sprites.add(bullet_bottom)
+            bullets.add(bullet_bottom)
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, type):
         pygame.sprite.Sprite.__init__(self)
         self.image = shot
         self.rect = self.image.get_rect()
-        self.rect.bottom = y
         self.rect.centerx = x
-        self.speedy = -7
+
+        if type == 1: # 위쪽 총알
+            self.rect.bottom = y
+            self.speedy = -7
+        if type == 2: # 아래쪽 총알
+            self.rect.top = y
+            self.speedy = 7
+
 
     def update(self):
         self.rect.y += self.speedy
@@ -119,15 +126,54 @@ class Bullet(pygame.sprite.Sprite):
             self.kill()
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self):
+    def __init__(self, level):
         pygame.sprite.Sprite.__init__(self)
         self.image = enemy_img
         self.rect = self.image.get_rect()
-        self.rect.y = random.randrange(-700, -300)
-        self.rect.x = random.randrange(0, WIDTH - self.rect.width)
-        self.speedx = random.randrange(-1, 1)
-        self.speedy = random.randrange(1, 4)
-        self.shot_delay = random.randrange(3000, 4000)
+        if level == 1:
+            self.bullet_speed = 0.7
+            self.rect.y = random.randrange(-700, -300)
+            self.rect.x = random.randrange(0, WIDTH - self.rect.width)
+            self.speedx = random.randrange(-3, 3)
+            self.speedy = random.randrange(1, 4)
+            self.shot_delay = random.randrange(1000, 2000)
+
+        if level == 2: #x속도, y속도, 샷 딜레이 조정
+            self.bullet_speed = 1
+            self.rect.y = random.randrange(-700, -300)
+            self.rect.x = random.randrange(0, WIDTH - self.rect.width)
+            self.speedx = random.randrange(-3, 3)
+            self.speedy = random.randrange(2, 5)
+            self.shot_delay = random.randrange(1000, 2000)
+
+        if level == 3:
+            self.bullet_speed = 1
+            self.shot_delay = random.randrange(1000, 2000)
+            self.speedx = random.randrange(-3, 3)
+            if random.random() > 0.5:
+                self.rect.y = random.randrange(-700, -300)
+                self.rect.x = random.randrange(0, WIDTH - self.rect.width)
+                self.speedy = random.randrange(2, 6)
+            else:
+                self.rect.y = random.randrange(HEIGHT + 300,
+                                               HEIGHT + 700)  # 밑에서도 적들이 나오게 하려면 플레이어 총알을 아래로도 발사시킬 수 있어야 함
+                self.rect.x = random.randrange(0, WIDTH - self.rect.width)
+                self.speedy = random.randrange(-5, -1)
+
+        if level == 4: #보스전
+            self.bullet_speed = 1.3
+            self.shot_delay = random.randrange(1000, 2000)
+            self.speedx = random.randrange(-3, 3)
+            if random.random() > 0.5:
+                self.rect.y = random.randrange(-700, -300)
+                self.rect.x = random.randrange(0, WIDTH - self.rect.width)
+                self.speedy = random.randrange(2, 7)
+            else:
+                self.rect.y = random.randrange(HEIGHT + 300,
+                                               HEIGHT + 700)
+                self.rect.x = random.randrange(0, WIDTH - self.rect.width)
+                self.speedy = random.randrange(-5, -1)
+
         self.last_shot = pygame.time.get_ticks()
         self.HP = 100
 
@@ -136,32 +182,64 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.y += self.speedy
 
         # 적이 보이는 범위를 벗어나면 삭제하고 새로운 적을 만들어줌
-        if (self.rect.top > HEIGHT + 10) or (self.rect.left < -25) or (self.rect.right > WIDTH + 20):
+        # 아래쪽으로 내려가는 적 삭제
+        if (self.speedy > 0) and ((self.rect.top > HEIGHT + 10) or (self.rect.left < -25) or (self.rect.right > WIDTH + 20)):
             self.kill()
-            make_new_enemy()
+            make_new_enemy(level)
+        # 위로 올라가는 적 삭제
+        if (self.speedy < 0) and ((self.rect.bottom < 0) or (self.rect.left < -25) or (self.rect.right > WIDTH + 20)):
+            self.kill()
+            make_new_enemy(level)
 
         now = pygame.time.get_ticks()
-        if now - self.last_shot > self.shot_delay and random.random() > 0.7:
+        if now - self.last_shot > self.shot_delay and random.random() > 0.7: #샷 딜레이 시간 후, 일정 확률로 총알 발사
             self.last_shot = now
-            enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom)
-            enemy_bullet2 = Enemy_Bullet(0, self.speedy, self.rect.centerx, self.rect.bottom)
-            enemy_bullet3 = Enemy_Bullet(-self.speedx, self.speedy, self.rect.centerx, self.rect.bottom)
-            all_sprites.add(enemy_bullet1)
-            all_sprites.add(enemy_bullet2)
-            all_sprites.add(enemy_bullet3)
-            enemy_bullets.add(enemy_bullet1)
-            enemy_bullets.add(enemy_bullet2)
-            enemy_bullets.add(enemy_bullet3)
+
+            ####################################### 총알 각도 수정 필요
+            if level == 1: # 레벨 1에서 총알 1개씩 발사
+                enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
+                all_sprites.add(enemy_bullet1)
+                enemy_bullets.add(enemy_bullet1)
+
+            if level == 2: # 레벨 2에서 총알 2개씩 발사
+                enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom,
+                                             self.bullet_speed)
+                all_sprites.add(enemy_bullet1)
+                enemy_bullets.add(enemy_bullet1)
+
+                enemy_bullet2 = Enemy_Bullet(0, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
+                all_sprites.add(enemy_bullet2)
+                enemy_bullets.add(enemy_bullet2)
+
+            if level >= 3: # 레벨 3, 보스전에서 총알 3개씩 발사
+                enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
+                all_sprites.add(enemy_bullet1)
+                enemy_bullets.add(enemy_bullet1)
+
+                enemy_bullet2 = Enemy_Bullet(0, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
+                all_sprites.add(enemy_bullet2)
+                enemy_bullets.add(enemy_bullet2)
+
+                enemy_bullet3 = Enemy_Bullet(-self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
+                all_sprites.add(enemy_bullet3)
+                enemy_bullets.add(enemy_bullet3)
+
+
 
 class Enemy_Bullet(pygame.sprite.Sprite):
-    def __init__(self, speedx, speedy, x, y):
+    def __init__(self, speedx, speedy, x, y, bullet_speed):
         pygame.sprite.Sprite.__init__(self)
         self.image = enemy_shot
         self.rect = self.image.get_rect()
-        self.rect.bottom = y
+        #self.rect.bottom = y
         self.rect.centerx = x
-        self.speedy = speedy + 2
-        self.speedx = speedx
+        self.speedx = 0#speedx
+        if speedy > 0:
+            self.rect.bottom = y
+            self.speedy = speedy + bullet_speed
+        else:
+            self.rect.bottom = y - 20
+            self.speedy = speedy - bullet_speed
 
     def update(self):
         self.rect.y += self.speedy
@@ -187,8 +265,9 @@ class Item(pygame.sprite.Sprite):
 
 
 ############ 함수 선언 ############
-def make_new_enemy(): #새로운 적을 만드는 함수
-    enemy_element = Enemy()
+
+def make_new_enemy(level): #새로운 적을 만드는 함수
+    enemy_element = Enemy(level)
     all_sprites.add(enemy_element)
     enemys.add(enemy_element)
 
@@ -265,6 +344,8 @@ game = False
 now = 0
 start = 0
 
+level = 2 # 레벨 어떻게 바꿀 건지 수정해야 함
+
 while running:
     if menu:
         while (1): #수정 필요
@@ -286,7 +367,7 @@ while running:
         enemys = pygame.sprite.Group()
         enemyHPs = pygame.sprite.Group()
         for i in range(10):
-            make_new_enemy()
+            make_new_enemy(level)
 
         bullets = pygame.sprite.Group()
         enemy_bullets = pygame.sprite.Group()
@@ -356,7 +437,7 @@ while running:
 
         hits = pygame.sprite.groupcollide(enemys, bullets, True, True)
         for hit in hits:
-            make_new_enemy()
+            make_new_enemy(level)
             score += random.randrange(10, 50)
             if random.random() > 0.7:
                 item = Item(hit.rect.center)
@@ -391,7 +472,7 @@ while running:
             elif player.HP <= 0 and player.lives == 0:
                 player.HP = 0
                 player.lives = 0
-            make_new_enemy()
+            make_new_enemy(level)
         hits = pygame.sprite.spritecollide(player2, enemys, True)
         for hit in hits:
             player2.HP -= 50
@@ -402,7 +483,7 @@ while running:
             elif player2.HP <= 0 and player2.lives == 0:
                 player2.HP = 0
                 player2.lives = 0
-            make_new_enemy()
+            make_new_enemy(level)
 
         hits = pygame.sprite.spritecollide(player, items, True)
         for hit in hits:
@@ -430,6 +511,7 @@ while running:
         if (player.lives == 0 and player.HP == 0) or \
                 (player2.lives <= 0 and player2.HP == 0):
             game = False
+            score = 0
 
     if game == False: #수정 필요
         menu = True
@@ -450,6 +532,4 @@ while running:
     pygame.display.flip()
 
 pygame.quit()
-
-
 
