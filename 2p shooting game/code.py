@@ -23,7 +23,7 @@ BLUE = (24, 0, 255)
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("My Game")
+pygame.display.set_caption("Shooting Game")
 clock = pygame.time.Clock()
 
 start_img = pygame.image.load("start_img.png")
@@ -378,9 +378,14 @@ def draw_inventory(inventory_key):
         outline_rect2 = pygame.Rect(865 + inventoryWIDTH * i, HEIGHT - 55, inventoryWIDTH, inventoryWIDTH)  # 인벤토리 3칸 그려줌
         pygame.draw.rect(screen, color, outline_rect2, size)
 
-def draw_text(surf, text, size, x, y):
-    font = pygame.font.Font(font_name, size)
-    text_surface = font.render(text, True, BLACK)
+def draw_text(surf, text, size, x, y, color):
+    if color == BLACK:
+        font = pygame.font.Font(font_name, size)
+
+    if color == RED:
+        font = pygame.font.Font(font_name, size + 2)
+
+    text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
     text_rect.midtop = (x, y)
     surf.blit(text_surface, text_rect)
@@ -459,7 +464,7 @@ def draw_button(image, x, y):
     image_rect = image.get_rect()
     if x == 0: # x값이 0이면 중앙에 출력
         screen.blit(image, (WIDTH / 2 - image_rect.width /2, y))
-    else: # x값이 0ㅇ이 아니면 x, y에 출력
+    else: # x값이 0이 아니면 x, y에 출력
         screen.blit(image, (x, y))
 
 def manual():
@@ -541,6 +546,7 @@ reset = False
 start = 0
 
 level = 1
+level_time = 30000
 
 inventory_key = 1
 
@@ -593,8 +599,10 @@ while running:
             if event.type == pygame.KEYDOWN:  # key down일때
                 if event.key == pygame.K_o:
                     player.shot_top()
+                    score += 1
                 if event.key == pygame.K_p:
                     player.shot_bottom()
+                    score += 1
                 if event.key == pygame.K_LEFT:
                     player.speedx = -5
                 if event.key == pygame.K_RIGHT:
@@ -606,8 +614,10 @@ while running:
 
                 if event.key == pygame.K_r:
                     player2.shot_top()
+                    score += 1
                 if event.key == pygame.K_t:
                     player2.shot_bottom()
+                    score += 1
                 if event.key == pygame.K_a:
                     player2.speedx = -5
                 if event.key == pygame.K_d:
@@ -648,7 +658,7 @@ while running:
                     player2.speedy = 0
 
         # 레벨 변경
-        if now - start_time > 30000: #임시 - 30초마다 레벨 변경
+        if now - start_time > level_time: #임시 - 30초마다 레벨 변경
             nextlevel(now)
             level += 1
 
@@ -665,7 +675,7 @@ while running:
         hits = pygame.sprite.groupcollide(enemys, bullets, True, True)
         for hit in hits:
             make_new_enemy(level)
-            score += random.randrange(10, 50)
+            score += random.randrange(20, 50)
             if random.random() > 0.7:
                 item = Item(hit.rect.center)
                 all_sprites.add(item)
@@ -714,6 +724,7 @@ while running:
 
         hits = pygame.sprite.spritecollide(player, items, True)
         for hit in hits:
+            score += random.randrange(20, 40)
             if hit.type == 'item1':
                 player.item1 += 1
             if hit.type == 'item2':
@@ -722,6 +733,7 @@ while running:
                 player.item3 += 1
         hits = pygame.sprite.spritecollide(player2, items, True)
         for hit in hits:
+            score += random.randrange(20, 40)
             if hit.type == 'item1':
                 player2.item1 += 1
             if hit.type == 'item2':
@@ -746,8 +758,8 @@ while running:
 
     all_sprites.draw(screen)
 
-    draw_text(screen, "SCORE: ", 20, WIDTH / 2 - 30, 30)
-    draw_text(screen, str(score), 20, WIDTH / 2 + 30, 30)
+    draw_text(screen, "SCORE: ", 20, WIDTH / 2 - 30, 30, BLACK)
+    draw_text(screen, str(score), 20, WIDTH / 2 + 30, 30, BLACK)
     draw_HP(screen, 15, 15, player2.HP, BLUE)
     draw_HP(screen, WIDTH - 135, 15, player.HP, RED)
 
@@ -755,20 +767,28 @@ while running:
 
     draw_item(player.item1, player.item2, player.item3, WIDTH -15 - shieldWIDHT, HEIGHT - 55) # player1 아이템 그리기
     draw_item(player2.item1, player2.item2, player2.item3, 15, HEIGHT - 55) # player2 아이템 그리기
-    draw_text(screen, str(player.item1), 15, WIDTH - 100, HEIGHT - 32) # player1 아이템 개수 표시
-    draw_text(screen, str(player.item2), 15, WIDTH - 60, HEIGHT - 32)
-    draw_text(screen, str(player.item3), 15, WIDTH - 20, HEIGHT - 32)
-    draw_text(screen, str(player2.item1), 15, 50, HEIGHT - 32) # plyaer2 아이템 개수 표시
-    draw_text(screen, str(player2.item2), 15, 90, HEIGHT - 32)
-    draw_text(screen, str(player2.item3), 15, 130, HEIGHT - 32)
+    draw_text(screen, str(player.item1), 15, WIDTH - 100, HEIGHT - 32, BLACK) # player1 아이템 개수 표시
+    draw_text(screen, str(player.item2), 15, WIDTH - 60, HEIGHT - 32, BLACK)
+    draw_text(screen, str(player.item3), 15, WIDTH - 20, HEIGHT - 32, BLACK)
+    draw_text(screen, str(player2.item1), 15, 50, HEIGHT - 32, BLACK) # plyaer2 아이템 개수 표시
+    draw_text(screen, str(player2.item2), 15, 90, HEIGHT - 32, BLACK)
+    draw_text(screen, str(player2.item3), 15, 130, HEIGHT - 32, BLACK)
 
     draw_lives(screen, 10, player2.lives, min_player1)
     draw_lives(screen, WIDTH - 145, player.lives, min_player2)
 
-    draw_text(screen, "LEVEL: ", 20, WIDTH / 2 - 30, 5)
-    draw_text(screen, str(level), 20, WIDTH/2 + 30, 5)
+    draw_text(screen, "LEVEL:  ", 20, WIDTH / 2 - 30, 5, BLACK)
+    draw_text(screen, str(level), 20, WIDTH/2 + 30, 5, BLACK)
+
+    draw_text(screen, "TIME:    ", 20, WIDTH / 2 - 30, 55, BLACK)
+    if level_time - (now - start_time) > 4000 : # 남은 시간이 4초 이상이면 검정색으로 시간 표시
+        draw_text(screen, str("%0.2f" % float((level_time - (now - start_time))/ 1000)), 20, WIDTH / 2 + 30, 55, BLACK)
+    else: # 남은 이간이 4초 이하라면 빨간색 굵은 글씨로 시간 표시
+        draw_text(screen, str("%0.2f" % float((level_time - (now - start_time)) / 1000)), 20, WIDTH / 2 + 30, 55, RED)
 
     pygame.display.flip()
 
 pygame.quit()
+
+
 
