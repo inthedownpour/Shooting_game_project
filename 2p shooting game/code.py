@@ -5,9 +5,13 @@ import time
 import sqlite3
 from os import path
 import queue
+import math
+
+pygame.init()
+pygame.mixer.pre_init()
+pygame.mixer.init()
 
 ############ 전역변수 선언 ############
-
 WIDTH = 1000
 HEIGHT = 700
 FPS = 1400
@@ -23,34 +27,41 @@ RED = (255, 0, 0)
 GREEN = (124, 252, 0)
 BLUE = (24, 0, 255)
 WHITE = (255, 255, 255)
+YELLOW = (250, 186, 67)
 
-pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Shooting Game")
 clock = pygame.time.Clock()
 
-# start_img = pygame.image.load("start_img.png")
-# start_img = pygame.transform.scale(start_img, (WIDTH, HEIGHT))
+############ 데이터베이스 관련 ############
+con, cur = None, None
+data1, data2, data3 = "","",""
+sql = ""
+con = sqlite3.connect("RANKING_CHART")
+cur = con.cursor()
+#cur.execute("CREATE TABLE scoreTable (id char(4), score INT)") #데이터베이스 파일 생성
 
+
+############ 이미지 ############
+## 1. 화면 이미지
 manual_img1 = pygame.transform.scale(pygame.image.load("manual_img1.png"), (WIDTH, HEIGHT))
 manual_img2 = pygame.transform.scale(pygame.image.load("manual_img2.png"), (WIDTH, HEIGHT))
 manual_img3 = pygame.transform.scale(pygame.image.load("manual_img3.png"), (WIDTH, HEIGHT))
-
 ranking_img = pygame.transform.scale(pygame.image.load("ranking_img.png"), (WIDTH, HEIGHT))
-
 gameover_img = pygame.transform.scale(pygame.image.load("gameover_img.png"), (WIDTH, HEIGHT))
-
 nextlevel_img = pygame.transform.scale(pygame.image.load("nextlevel_img.png"), (WIDTH, HEIGHT))
-
 saveranking_img = pygame.transform.scale(pygame.image.load("saveranking_img.png"), (WIDTH, HEIGHT))
-
 endingCredit_img = pygame.transform.scale(pygame.image.load("endingCredit_img.png"), (350, 500))
-
 chooseCharacter_img = pygame.transform.scale(pygame.image.load("chooseCharacter_img.png"), (WIDTH, HEIGHT))
-
 main_text = pygame.image.load("main_text.png")
+background_img = pygame.transform.scale(pygame.image.load("background.png"), (WIDTH, HEIGHT))
+background_rect = background_img.get_rect()
+background_img1 = pygame.transform.scale(pygame.image.load("background_1.png"), (WIDTH, HEIGHT))
+background_img2 = pygame.transform.scale(pygame.image.load("background_2.png"), (WIDTH, HEIGHT))
+background_img3 = pygame.transform.scale(pygame.image.load("background_3.png"), (WIDTH, HEIGHT))
+background_img4 = pygame.transform.scale(pygame.image.load("background_4.png"), (WIDTH, HEIGHT))
 
-######### 버튼 이미지
+##2. 버튼 이미지
 b_end = pygame.transform.scale(pygame.image.load("b_end.png"), (140, 50))
 b_main = pygame.transform.scale(pygame.image.load("b_main.png"), (140, 50))
 b_manual = pygame.transform.scale(pygame.image.load("b_manual.png"), (140, 50))
@@ -59,40 +70,26 @@ b_start = pygame.transform.scale(pygame.image.load("b_start.png"), (140, 50))
 b_Rarrow = pygame.transform.scale(pygame.image.load("b_Rarrow.png"), (50, 50))
 b_Larrow = pygame.transform.scale(pygame.image.load("b_Larrow.png"), (50, 50))
 
-
-######### 아이템 이미지
+##3. 아이템 이미지
 items_set = {}
 items_set['item1'] = pygame.image.load("item_1.png")
 items_set['item2'] = pygame.image.load("item_2.png")
 items_set['item3'] = pygame.image.load("item_3.png")
 
-####### 플레이어 1, 2
-
+##4. 플레이어 이미지
 player1_img = pygame.transform.scale(pygame.image.load("player1.png"), (120, 120))
 player2_img = pygame.transform.scale(pygame.image.load("player2.png"), (120, 120))
 player3_img = pygame.transform.scale(pygame.image.load("player3.png"), (130, 130))
 player4_img = pygame.transform.scale(pygame.image.load("player4.png"), (120, 120))
 player5_img = pygame.transform.scale(pygame.image.load("player5.png"), (120, 120))
-
 min_player1 = pygame.transform.scale(pygame.image.load("min_player1.png"), (20, 20))
-
 min_player2 = pygame.transform.scale(pygame.image.load("min_player2.png"), (20, 20))
 
-background = pygame.image.load("background.png")
-background_img = pygame.transform.scale(background, (WIDTH, HEIGHT))
-background_rect = background_img.get_rect()
-
-shot = pygame.transform.scale(pygame.image.load("shot.png"), (35, 30))
-shot2 = pygame.transform.scale(pygame.image.load("shot2.png"), (20, 20))
-
-item3_shot = pygame.transform.scale(pygame.image.load("item3_shot.png"), (100, 100))
-
-enemy_shot = pygame.transform.scale(pygame.image.load("enemy_shot.png"), (10, 10))
-
+##5. 적 이미지
 enemys_img1 = []
 enemys_list1 = ['enemy1.png', 'enemy2.png', 'enemy3.png']
 enemys_img2 = []
-enemys_list2 = ['enemy4.png', 'enemy5.png', 'enemy6.png']
+enemys_list2 = ['enemy3.png', 'enemy4.png', 'enemy5.png'] # enemy6은 보스전에 사용해야해서 뺌
 enemys_img3 = []
 enemys_list3 = ['enemy7.png', 'enemy8.png', 'enemy9.png']
 for image in enemys_list1:
@@ -101,101 +98,22 @@ for image in enemys_list2:
     enemys_img2.append(pygame.image.load(image))
 for image in enemys_list3:
     enemys_img3.append(pygame.image.load(image))
+boss_img = pygame.transform.scale(pygame.image.load("enemy6.png"), (160, 160))
 
+##6. 총알 이미지
+shot = pygame.transform.scale(pygame.image.load("shot.png"), (35, 30))
+shot2 = pygame.transform.scale(pygame.image.load("shot2.png"), (20, 20))
+item3_shot = pygame.transform.scale(pygame.image.load("item3_shot.png"), (100, 100))
+enemy_shot = pygame.transform.scale(pygame.image.load("enemy_shot.png"), (10, 10))
+boss_shot = pygame.transform.scale(pygame.image.load("boss_shot.png"), (30, 30))
 
-############ 데이터베이스 ############
-con, cur = None, None
-data1, data2, data3 = "","",""
-sql = ""
-con = sqlite3.connect("RANKING_CHART")
-cur = con.cursor()
-#cur.execute("CREATE TABLE scoreTable (id char(4), score INT)")
-
-def DB_insert(id, score):
-    DB_id = id
-    DB_score = score
-    sql = "INSERT INTO scoreTable VALUES('" + DB_id + "','" + DB_score + "')"
-    cur.execute(sql)
-    con.commit()
-
-def DB_check():
-
-    cur.execute("SELECT id, score FROM scoreTable ORDER BY CAST (score AS INTEGER) DESC")
-    con.commit()
-
-    draw_text(screen, "Player ID", 20, WIDTH / 2 - 110, 200, BLACK)
-    draw_text(screen, "SCORE", 20, WIDTH / 2 + 140, 200, BLACK)
-
-
-    for i in range(10):
-        row = cur.fetchone()
-        if row == None:
-            break
-        DB_id = row[0]
-        DB_score = row[1]
-        draw_text(screen, str(i+1), 20, WIDTH / 2 -  250, 250 + i * 30, BLACK)
-        draw_text(screen, str(DB_id), 20, WIDTH / 2 -  110, 250 + i * 30, BLACK)
-        draw_text(screen, str(DB_score), 20, WIDTH / 2 +  140, 250 + i * 30, BLACK)
-
-        #print("%5s %15s" % (data1, data2))
-    #con.close() #종료할 때 넣어야 함!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-def DB_inputdata():
-    global screen
-    screen.blit(saveranking_img, (0, 0))
-
-    pygame.display.update()
-
-    id = ''
-    input_box = pygame.Rect(WIDTH/2 + 50, 400, 60, 40)
-    font = pygame.font.Font(font_name, 30)
-    color = BLACK
-    active = False
-    while True:
-        if pygame.mouse.get_pressed()[0]:  # 마우스 왼쪽 버튼 클릭
-            mouse_pos = pygame.mouse.get_pos()
-            if collide(mouse_pos[0], mouse_pos[1], b_main_rect, 600) == True:
-                return 1
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if input_box.collidepoint(event.pos):
-                    active = not active ## True????
-                    color = WHITE # 칸 클릭하면 색깔 바뀜
-                else:
-                    active = False
-            if event.type == pygame.KEYDOWN:
-                if active:
-                    if event.key == pygame.K_RETURN:
-                        return id
-                    elif event.key == pygame.K_BACKSPACE:
-                        id = id[:-1]
-                    else:
-                        id += event.unicode
-
-
-        screen.blit(ranking_img, (0, 0))
-        draw_text(screen, "Click on the SQUARE and enter your ID", 25, WIDTH / 2, 170, BLACK)
-        draw_text(screen, "press ENTER to SAVE", 25, WIDTH / 2, 220, BLACK)
-        draw_text(screen, "YOUR SCORE: ", 30, WIDTH / 2 - 100, 330, BLACK)
-        draw_text(screen, str(score), 30, WIDTH / 2 + 100, 330, BLACK)
-        draw_text(screen, "ENTER YOUR ID: ", 30, WIDTH / 2 - 100, 400, BLACK)
-        #draw_text(screen, id, 30, WIDTH / 2 + 100, 300, BLACK)  # print(a)
-        draw_button(b_main, 0, 600)
-        txt_surface = font.render(id, True, BLACK)
-        # Resize the box if the text is too long.
-        width = max(200, txt_surface.get_width() + 10)
-        input_box.w = width
-        # Blit the text.
-        screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5)) # 글자 쓰기
-
-        pygame.draw.rect(screen, color, input_box, 2) # 사각형 그리기
-        b_main_rect = b_main.get_rect()
-
-        pygame.display.flip()
-        clock.tick(30)
+############ 음악 ############
+'''pygame.mixer.music.load('bnb_ocean.mp3')
+pygame.mixer.music.play(1)'''
+shooting_sound = pygame.mixer.Sound('pew.wav')
+hit_sound=pygame.mixer.Sound('expl3.wav')
+item3_shooting_sound = pygame.mixer.Sound('rumble1.ogg')
+boss_die_sound=pygame.mixer.Sound('boss_die.wav')
 
 
 ############ 클래스 선언 ############
@@ -216,15 +134,14 @@ class Player(pygame.sprite.Sprite):
         self.HP = 100
         self.power = 1
         self.power_time = pygame.time.get_ticks()
-
-        self.item1 = 0 #가지고 있는 아이템 개수 저장
+        self.item1 = 0 #아이템 개수 저장
         self.item2 = 0
         self.item3 = 0
+
+    def update(self):
         if self.item1 >= 5: self.item1 = 5 #아이템 하나당 최대 5개까지 보관 가능
         if self.item2 >= 5: self.item2 = 5
         if self.item3 >= 5: self.item3 = 5
-
-    def update(self):
         if self.rect.left < 0:
             self.rect.left = 0
         if self.rect.right > WIDTH:
@@ -236,25 +153,20 @@ class Player(pygame.sprite.Sprite):
         self.rect.x += self.speedx
         self.rect.y += self.speedy
 
-        now = pygame.time.get_ticks()
+    def shot_top(self): #위쪽으로 총알 발사
         if self.power >= 2 and now - self.power_time > 10000: #10초 동안 아이템2 효과 지속
             self.power -= 1
             self.power_time = pygame.time.get_ticks()
 
-        # if self.HP == 0 and self.lives == 0: #아이템이 안없어짐...
-        #     self.item1 = 0
-        #     self.item2 = 0
-        #     self.item3 = 0
-
-    def shot_top(self): ############레벨 1,2에서는 아래쪽 총알이 나오지 않도록 수정 필요 # 위쪽 총알 발사
-        if self.HP != 0 and self.lives != 0:
-            now = pygame.time.get_ticks()
-            if now - self.last_shot > self.top_shot_delay:
-                self.last_shot = now
+        if self.HP != 0 or self.lives != 0:
+            pnow = pygame.time.get_ticks()
+            if pnow - self.last_shot > self.top_shot_delay:
+                self.last_shot = pnow
                 if self.power == 1:
                     bullet_top = Bullet(self.rect.centerx, self.rect.top, 1)
                     all_sprites.add(bullet_top)
                     bullets.add(bullet_top)
+                    shooting_sound.play()
                 if self.power == 2:
                     bullet_top1 = Bullet(self.rect.centerx - 6, self.rect.top, 1)
                     bullet_top2 = Bullet(self.rect.centerx + 6, self.rect.top, 1)
@@ -262,6 +174,7 @@ class Player(pygame.sprite.Sprite):
                     bullets.add(bullet_top1)
                     all_sprites.add(bullet_top2)
                     bullets.add(bullet_top2)
+                    shooting_sound.play()
                 if self.power == 3:
                     bullet_top1 = Bullet(self.rect.centerx - 15, self.rect.top, 1)
                     bullet_top2 = Bullet(self.rect.centerx, self.rect.top, 1)
@@ -272,17 +185,23 @@ class Player(pygame.sprite.Sprite):
                     bullets.add(bullet_top2)
                     all_sprites.add(bullet_top3)
                     bullets.add(bullet_top3)
+                    shooting_sound.play()
 
 
-    def shot_bottom(self): # 아래쪽 총알 발사
-        if self.HP != 0 and self.lives != 0:
-            now = pygame.time.get_ticks()
-            if now - self.last_shot > self.bottom_shot_delay:
-                self.last_shot = now
+    def shot_bottom(self): # 아래쪽으로 총알 발사
+        if self.power >= 2 and now - self.power_time > 10000: #10초 동안 아이템2 효과 지속
+            self.power -= 1
+            self.power_time = pygame.time.get_ticks()
+
+        if self.HP != 0 or self.lives != 0:
+            pnow = pygame.time.get_ticks()
+            if pnow - self.last_shot > self.bottom_shot_delay:
+                self.last_shot = pnow
                 if self.power <= 2:
                     bullet_bottom = Bullet(self.rect.centerx, self.rect.bottom, 2)
                     all_sprites.add(bullet_bottom)
                     bullets.add(bullet_bottom)
+                    shooting_sound.play()
                 if self.power == 3:
                     bullet_bottom1 = Bullet(self.rect.centerx - 8, self.rect.bottom, 2)
                     bullet_bottom2 = Bullet(self.rect.centerx + 8, self.rect.bottom, 2)
@@ -290,26 +209,24 @@ class Player(pygame.sprite.Sprite):
                     bullets.add(bullet_bottom1)
                     all_sprites.add(bullet_bottom2)
                     bullets.add(bullet_bottom2)
-
+                    shooting_sound.play()
 
     def item(self, inventory_key):
         if inventory_key == 1 and self.item1 != 0:
             self.item1 -= 1
-            if player.HP >= 50:
-                player.HP = 100
-            else: player.HP += 50
+            if self.HP >= 50:
+                self.HP = 100
+            else: self.HP += 50
         if inventory_key == 2 and self.item2 != 0:
             self.item2 -= 1
             if self.power < 3:
                 self.power += 1
-
         if inventory_key == 3 and self.item3 != 0:
             self.item3 -= 1
             bullet_item3 = Bullet(self.rect.centerx, self.rect.bottom, 3)
             all_sprites.add(bullet_item3)
             item3_bullets.add(bullet_item3)
-
-        # 세 번째 아이템 구현해야 함
+            item3_shooting_sound.play()
 
 class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y, type):
@@ -317,7 +234,6 @@ class Bullet(pygame.sprite.Sprite):
         self.image = shot
         self.rect = self.image.get_rect()
         self.rect.centerx = x - 5
-
         if type == 1: # 위쪽 총알
             self.rect.bottom = y
             self.speedy = -10
@@ -328,7 +244,7 @@ class Bullet(pygame.sprite.Sprite):
             self.rect.top = y
             self.speedy = 6
         if type == 3:
-            self.image = pygame.transform.scale(item3_shot, (100, 100)) #이미지 어떻게 할지 결정해야 함. <shot> or <items_set['item3']>
+            self.image = pygame.transform.scale(item3_shot, (100, 100))
             self.rect = self.image.get_rect()
             self.rect.bottom = y - 120
             self.rect.centerx = x - 20
@@ -339,30 +255,25 @@ class Bullet(pygame.sprite.Sprite):
         if self.rect.y < -100 or self.rect.y > HEIGHT + 100:
             self.kill()
 
-
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, level):
         pygame.sprite.Sprite.__init__(self)
-        #self.image = enemy_img
-        #self.rect = self.image.get_rect()
-        if level == 1:
-            self.choose_image = random.choice(enemys_img1) #레벨1 이미지 설정
+        if level == 1: #레벨마다 x속도, y속도, shot_delay조정
+            self.choose_image = random.choice(enemys_img1)
             self.image = self.choose_image.copy()
-            self.image = pygame.transform.scale(self.image, (80, 80))
+            self.image = pygame.transform.scale(self.image, (55, 55))
             self.rect = self.image.get_rect()
-
             self.bullet_speed = 3
             self.rect.y = random.randrange(-700, -300)
             self.rect.x = random.randrange(0, WIDTH - self.rect.width)
             self.speedx = random.randrange(-2, 2)
             self.speedy = random.randrange(3, 5)
             self.shot_delay = random.randrange(1000, 2000)
-        if level == 2: #x속도, y속도, 샷 딜레이 조정
-            self.choose_image = random.choice(enemys_img2) #레벨2 이미지 설정
+        if level == 2:
+            self.choose_image = random.choice(enemys_img2)
             self.image = self.choose_image.copy()
-            self.image = pygame.transform.scale(self.image, (50, 50))
+            self.image = pygame.transform.scale(self.image, (55, 55))
             self.rect = self.image.get_rect()
-
             self.bullet_speed = 3.5
             self.rect.y = random.randrange(-700, -300)
             self.rect.x = random.randrange(0, WIDTH - self.rect.width)
@@ -370,11 +281,10 @@ class Enemy(pygame.sprite.Sprite):
             self.speedy = random.randrange(4, 6)
             self.shot_delay = random.randrange(1000, 2000)
         if level == 3:
-            self.choose_image = random.choice(enemys_img3) #레벨3 이미지 설정
+            self.choose_image = random.choice(enemys_img3)
             self.image = self.choose_image.copy()
-            self.image = pygame.transform.scale(self.image, (50, 50))
+            self.image = pygame.transform.scale(self.image, (55, 55))
             self.rect = self.image.get_rect()
-
             self.bullet_speed = 4
             self.shot_delay = random.randrange(1000, 2000)
             self.speedx = random.randrange(-2, 2)
@@ -388,11 +298,10 @@ class Enemy(pygame.sprite.Sprite):
                 self.rect.x = random.randrange(0, WIDTH - self.rect.width)
                 self.speedy = random.randrange(-5, -4)
         if level == 4: #보스전
-            self.choose_image = random.choice(enemys_img3) #보스전 이미지 설정
+            self.choose_image = random.choice(enemys_img3)
             self.image = self.choose_image.copy()
-            self.image = pygame.transform.scale(self.image, (50, 50))
+            self.image = pygame.transform.scale(self.image, (55, 55))
             self.rect = self.image.get_rect()
-
             self.bullet_speed = 4.3
             self.shot_delay = random.randrange(1000, 2000)
             self.speedx = random.randrange(-2, 2)
@@ -405,7 +314,6 @@ class Enemy(pygame.sprite.Sprite):
                                                HEIGHT + 700)
                 self.rect.x = random.randrange(0, WIDTH - self.rect.width)
                 self.speedy = random.randrange(-5, -1)
-
         self.last_shot = pygame.time.get_ticks()
         self.HP = 100
 
@@ -426,32 +334,24 @@ class Enemy(pygame.sprite.Sprite):
         now = pygame.time.get_ticks()
         if now - self.last_shot > self.shot_delay and random.random() > 0.7: #샷 딜레이 시간 후, 일정 확률로 총알 발사
             self.last_shot = now
-
-            ####################################### 총알 각도 수정 필요
             if level == 1: # 레벨 1에서 총알 1개씩 발사
                 enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
                 all_sprites.add(enemy_bullet1)
                 enemy_bullets.add(enemy_bullet1)
-
             if level == 2: # 레벨 2에서 총알 2개씩 발사
-                enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom,
-                                             self.bullet_speed)
+                enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
                 all_sprites.add(enemy_bullet1)
                 enemy_bullets.add(enemy_bullet1)
-
                 enemy_bullet2 = Enemy_Bullet(0, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
                 all_sprites.add(enemy_bullet2)
                 enemy_bullets.add(enemy_bullet2)
-
             if level >= 3: # 레벨 3, 보스전에서 총알 3개씩 발사
                 enemy_bullet1 = Enemy_Bullet(self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
                 all_sprites.add(enemy_bullet1)
                 enemy_bullets.add(enemy_bullet1)
-
                 enemy_bullet2 = Enemy_Bullet(0, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
                 all_sprites.add(enemy_bullet2)
                 enemy_bullets.add(enemy_bullet2)
-
                 enemy_bullet3 = Enemy_Bullet(-self.speedx, self.speedy, self.rect.centerx, self.rect.bottom, self.bullet_speed)
                 all_sprites.add(enemy_bullet3)
                 enemy_bullets.add(enemy_bullet3)
@@ -461,7 +361,6 @@ class Enemy_Bullet(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         self.image = enemy_shot
         self.rect = self.image.get_rect()
-        #self.rect.bottom = y
         self.rect.centerx = x
         self.speedx = speedx
         if speedy > 0:
@@ -490,17 +389,126 @@ class Item(pygame.sprite.Sprite):
 
     def update(self):
         self.rect.y += self.speedy
-        if self.rect.top > HEIGHT:
+        if self.rect.y < -100 or self.rect.y > HEIGHT + 100:
+            self.kill()
+
+class Boss(pygame.sprite.Sprite):
+    def __init__(self):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = boss_img
+        self.rect = self.image.get_rect()
+        self.rect.centerx = WIDTH/2
+        self.rect.y = 100
+        self.speed = 7
+        self.Ydirection = 0
+        self.Xdirection = 0
+        self.HP = 100
+        self.last_shot = pygame.time.get_ticks()
+        self.shot_delay = 2000
+
+    def update(self):
+        if self.Xdirection == 0:
+            self.rect.x += self.speed
+            if self.rect.right >= WIDTH:
+                self.Xdirection = 1
+        if self.Xdirection == 1:
+            self.rect.left -= self.speed
+            if self.rect.x < 0:
+                self.Xdirection = 0
+        if self.HP < 0:
+            self.kill()
+
+        if now - self.last_shot > self.shot_delay:
+            self.last_shot = now
+            boss_bullet = Boss_Bullet(self.rect.x, self.rect.bottom)
+            all_sprites.add(boss_bullet)
+            boss_bullets.add(boss_bullet)
+
+class Boss_Bullet(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = boss_shot
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.top = y + 5
+
+    def update(self):
+        self.rect.y += 7
+        if self.rect.y < 0:
             self.kill()
 
 
 ############ 함수 선언 ############
+##1. 데이터베이스 함수
+def DB_insert(id, score):
+    DB_id = id
+    DB_score = score
+    sql = "INSERT INTO scoreTable VALUES('" + DB_id + "','" + DB_score + "')"
+    cur.execute(sql)
+    con.commit()
 
-def make_new_enemy(level): #새로운 적을 만드는 함수
-    enemy_element = Enemy(level)
-    all_sprites.add(enemy_element)
-    enemys.add(enemy_element)
+def DB_check():
+    cur.execute("SELECT id, score FROM scoreTable ORDER BY CAST (score AS INTEGER) DESC")
+    con.commit()
+    draw_text(screen, "Player ID", 35, WIDTH / 2 - 80, 140, BLACK)
+    draw_text(screen, "SCORE", 35, WIDTH / 2 + 160, 140, BLACK)
+    for i in range(10):
+        row = cur.fetchone()
+        if row == None:
+            break
+        DB_id = row[0]
+        DB_score = row[1]
+        draw_text(screen, str(i+1), 30, WIDTH / 2 - 230, 200 + i * 35, BLACK)
+        draw_text(screen, str(DB_id), 30, WIDTH / 2 - 80, 200 + i * 35, BLACK)
+        draw_text(screen, str(DB_score), 30, WIDTH / 2 + 160, 200 + i * 35, BLACK)
 
+def DB_inputdata():
+    global screen
+    screen.blit(saveranking_img, (0, 0))
+    pygame.display.update()
+    id = ''
+    input_box = pygame.Rect(WIDTH/2 + 50, 400, 60, 40)
+    font = pygame.font.Font(font_name, 30)
+    color = BLACK
+    active = False
+    while True:
+        if pygame.mouse.get_pressed()[0]:  # 마우스 왼쪽 버튼 클릭
+            mouse_pos = pygame.mouse.get_pos()
+            if collide(mouse_pos[0], mouse_pos[1], b_main_rect, 600) == True:
+                return 1
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if input_box.collidepoint(event.pos):
+                    active = not active
+                    color = WHITE # 네모칸을 클릭하면 색깔 바뀜
+                else: active = False
+            if event.type == pygame.KEYDOWN:
+                if active:
+                    if event.key == pygame.K_RETURN:
+                        return id
+                    elif event.key == pygame.K_BACKSPACE: id = id[:-1]
+                    else: id += event.unicode
+
+        screen.blit(saveranking_img, (0, 0))
+        draw_text(screen, "Click on the SQUARE and enter your ID", 25, WIDTH / 2, 170, BLACK)
+        draw_text(screen, "press ENTER to SAVE", 25, WIDTH / 2, 220, BLACK)
+        draw_text(screen, "YOUR SCORE: ", 30, WIDTH / 2 - 100, 330, BLACK)
+        draw_text(screen, str(score), 30, WIDTH / 2 + 100, 330, BLACK)
+        draw_text(screen, "ENTER YOUR ID: ", 30, WIDTH / 2 - 100, 400, BLACK)
+        draw_button(b_main, 0, 600)
+        txt_surface = font.render(id, True, BLACK)
+        width = max(200, txt_surface.get_width() + 10)
+        input_box.w = width
+        screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
+        pygame.draw.rect(screen, color, input_box, 2)
+        b_main_rect = b_main.get_rect()
+        pygame.display.flip()
+        clock.tick(30)
+
+##2. draw 함수
 def draw_HP(surf, x, y, HP, color):
     HP = max(HP, 0)
     fill = (HP / 100) * shieldWIDHT
@@ -518,7 +526,7 @@ def draw_inventory(p1_inventory_key, p2_inventory_key):
         else:
             color = BLACK
             size = 2
-        outline_rect2 = pygame.Rect(15 + inventoryWIDTH * i, HEIGHT - 55, inventoryWIDTH, inventoryWIDTH)  # 인벤토리 3칸 그려줌
+        outline_rect2 = pygame.Rect(15 + inventoryWIDTH * i, HEIGHT - 55, inventoryWIDTH, inventoryWIDTH)  # 인벤토리 3칸 그리기
         pygame.draw.rect(screen, color, outline_rect2, size)
 
     for i in range (0, 3):
@@ -528,16 +536,14 @@ def draw_inventory(p1_inventory_key, p2_inventory_key):
         else:
             color = BLACK
             size = 2
-        outline_rect2 = pygame.Rect(865 + inventoryWIDTH * i, HEIGHT - 55, inventoryWIDTH, inventoryWIDTH)  # 인벤토리 3칸 그려줌
+        outline_rect2 = pygame.Rect(865 + inventoryWIDTH * i, HEIGHT - 55, inventoryWIDTH, inventoryWIDTH)  # 인벤토리 3칸 그리기
         pygame.draw.rect(screen, color, outline_rect2, size)
 
 def draw_text(surf, text, size, x, y, color):
     if color == BLACK:
         font = pygame.font.Font(font_name, size)
-
     if color == WHITE:
         font = pygame.font.Font(font_name, size + 2)
-
     text_surface = font.render(text, True, color)
     text_rect = text_surface.get_rect()
     text_rect.midtop = (x, y)
@@ -579,7 +585,14 @@ def draw_button(image, x, y):
     else: # x값이 0이 아니면 x, y에 출력
         screen.blit(image, (x, y))
 
-def collide(mouseX, mouseY, rect, y): #버튼 클릭
+##3.적 생성 함수
+def make_new_enemy(level):
+    enemy_element = Enemy(level)
+    all_sprites.add(enemy_element)
+    enemys.add(enemy_element)
+
+##4. 충돌 감지 함수
+def collide(mouseX, mouseY, rect, y): #중앙에 위치한 버튼 클릭 확인용
     rectX = WIDTH / 2 - rect.width / 2
 
     if (mouseX >= rectX and mouseX <= rectX + rect.width and mouseY >= y and mouseY <= y + rect.height):
@@ -587,7 +600,7 @@ def collide(mouseX, mouseY, rect, y): #버튼 클릭
     else:
         return False
 
-def collideXY(mouseX, mouseY, rect, x, y): #버튼 클릭
+def collideXY(mouseX, mouseY, rect, x, y): #중앙에 위치하지 않은 버튼 클릭 확인용
     rectX = WIDTH / 2 - rect.width / 2
 
     if (mouseX >= x and mouseX <= x + rect.width and mouseY >= y and mouseY <= y + rect.height):
@@ -595,6 +608,7 @@ def collideXY(mouseX, mouseY, rect, x, y): #버튼 클릭
     else:
         return False
 
+##5. 메뉴 관련 함수
 def main_menu():
     global screen
 
@@ -604,8 +618,6 @@ def main_menu():
     draw_button(b_manual, 0, 380)
     draw_button(b_ranking, 0, 460)
     draw_button(b_end, 0, 540)
-
-    #DB_insert(str(100), str(400))
 
     b_start_rect = b_start.get_rect()
     b_manual_rect = b_manual.get_rect()
@@ -625,7 +637,6 @@ def main_menu():
                 return 4
             elif collide(mouse_pos[0], mouse_pos[1], b_end_rect, 540) == True: # b_end
                 quit()
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -633,10 +644,8 @@ def main_menu():
 
 def manual():
     global screen
-
     manual_img = manual_img1
     page = 1
-
     screen.blit(manual_img, (0, 0))
     draw_button(b_main, 0, 600)
     b_main_rect = b_main.get_rect()
@@ -649,19 +658,14 @@ def manual():
     pygame.display.update()
 
     while True:
-
-        if page == 1:
-            manual_img = manual_img1
-        elif page == 2:
-            manual_img = manual_img2
-        elif page == 3:
-            manual_img = manual_img3
+        if page == 1: manual_img = manual_img1
+        elif page == 2: manual_img = manual_img2
+        elif page == 3: manual_img = manual_img3
 
         screen.blit(manual_img, (0, 0))
         draw_button(b_main, 0, 600)
         draw_button(b_Rarrow, WIDTH - 100, 600)
         draw_button(b_Larrow, 50, 600)
-
 
         if pygame.mouse.get_pressed()[0]: #마우스 왼쪽 버튼 클릭
             mouse_pos = pygame.mouse.get_pos()
@@ -693,9 +697,8 @@ def ranking():
 
     pygame.display.update()
 
-
     while True:
-        if pygame.mouse.get_pressed()[0]: #마우스 왼쪽 버튼 클릭
+        if pygame.mouse.get_pressed()[0]:
             mouse_pos = pygame.mouse.get_pos()
             if collide(mouse_pos[0], mouse_pos[1], b_main_rect, 600) == True:
                 return 1
@@ -711,16 +714,14 @@ def saveranking(score):
     draw_button(b_main, 0, 600)
     b_main_rect = b_main.get_rect()
     word = DB_inputdata()
-    #draw_text(screen, word, 30, WIDTH/2 + 50, 400, BLACK)
     draw_text(screen, "SAVED", 30, WIDTH/2, 500, BLACK)
 
-    #DB_insert(word, str(score))
     DB_insert(word, str(score))
 
     pygame.display.update()
 
     while True:
-        if pygame.mouse.get_pressed()[0]:  # 마우스 왼쪽 버튼 클릭
+        if pygame.mouse.get_pressed()[0]:
             mouse_pos = pygame.mouse.get_pos()
             if collide(mouse_pos[0], mouse_pos[1], b_main_rect, 600) == True:
                 return 1
@@ -768,18 +769,13 @@ def endingCredit(time):
     endingCredit_img_rect = endingCredit_img.get_rect()
     endingCredit_img_rect.y = HEIGHT - 10
     screen.blit(endingCredit_img, (WIDTH / 2 - endingCredit_img_rect.width / 2, endingCredit_img_rect.y))
-    # img_rect = image.get_rect()
-    # img_rect.x = x + 30 * i
-    # img_rect.y = 35
-    # surf.blit(image, img_rect)
 
     pygame.display.update()
 
     while True:
         screen.blit(background_img, (0, 0))
-        endingCredit_img_rect.y -= 3 # 엔딩크레딧 수정 필요
+        endingCredit_img_rect.y -= 3 # 엔딩크레딧이 올라가는 속도
         screen.blit(endingCredit_img, (WIDTH / 2 - endingCredit_img_rect.width / 2, endingCredit_img_rect.y))
-
         now = pygame.time.get_ticks()
         if time + 8000 <= now:
             break
@@ -801,29 +797,29 @@ def choose_character():
     q.put(1)
     q.put(2)
 
-    click_box1 = pygame.Rect(90, 240, 140, 140)
+    click_box1 = pygame.Rect(90, 150, 140, 140)
     pygame.draw.rect(screen, BLACK, click_box1, 4)
-    draw_button(player1_img, 100, 250)
+    draw_button(player1_img, 100, 160)
     p1_rect = player1_img.get_rect()
 
-    click_box2 = pygame.Rect(390, 240, 140, 140)
+    click_box2 = pygame.Rect(390, 150, 140, 140)
     pygame.draw.rect(screen, BLACK, click_box2, 4)
-    draw_button(player2_img, 400, 250)
+    draw_button(player2_img, 400, 160)
     p2_rect = player2_img.get_rect()
 
-    click_box3 = pygame.Rect(690, 240, 140, 140)
+    click_box3 = pygame.Rect(690, 150, 140, 140)
     pygame.draw.rect(screen, BLACK, click_box3, 4)
-    draw_button(player3_img, 700, 250)
+    draw_button(player3_img, 695, 160)
     p3_rect = player3_img.get_rect()
 
-    click_box4 = pygame.Rect(240, 440, 140, 140)
+    click_box4 = pygame.Rect(240, 380, 140, 140)
     pygame.draw.rect(screen, BLACK, click_box4, 4)
-    draw_button(player4_img, 250, 450)
+    draw_button(player4_img, 250, 390)
     p4_rect = player4_img.get_rect()
 
-    click_box5 = pygame.Rect(540, 440, 140, 140)
+    click_box5 = pygame.Rect(540, 380, 140, 140)
     pygame.draw.rect(screen, BLACK, click_box5, 4)
-    draw_button(player5_img, 550, 450)
+    draw_button(player5_img, 550, 390)
     p5_rect = player5_img.get_rect()
 
     pygame.display.update()
@@ -835,19 +831,19 @@ def choose_character():
                 quit()
             if pygame.mouse.get_pressed()[0]:  # 마우스 왼쪽 버튼 클릭
                 mouse_pos = pygame.mouse.get_pos()
-                if collideXY(mouse_pos[0], mouse_pos[1], p1_rect, 100, 250) == True:
+                if collideXY(mouse_pos[0], mouse_pos[1], p1_rect, 100, 160) == True:
                     q.put(1)
                     q.get()
-                if collideXY(mouse_pos[0], mouse_pos[1], p2_rect, 400, 250) == True:
+                if collideXY(mouse_pos[0], mouse_pos[1], p2_rect, 400, 160) == True:
                     q.put(2)
                     q.get()
-                if collideXY(mouse_pos[0], mouse_pos[1], p3_rect, 700, 250) == True:
+                if collideXY(mouse_pos[0], mouse_pos[1], p3_rect, 700, 160) == True:
                     q.put(3)
                     q.get()
-                if collideXY(mouse_pos[0], mouse_pos[1], p4_rect, 250, 450) == True:
+                if collideXY(mouse_pos[0], mouse_pos[1], p4_rect, 250, 380) == True:
                     q.put(4)
                     q.get()
-                if collideXY(mouse_pos[0], mouse_pos[1], p5_rect, 550, 450) == True:
+                if collideXY(mouse_pos[0], mouse_pos[1], p5_rect, 550, 380) == True:
                     q.put(5)
                     q.get()
                 if collide(mouse_pos[0], mouse_pos[1], b_start_rect, 600) == True:  # b_end
@@ -866,12 +862,12 @@ def choose_character():
 
         pygame.display.flip()
 
+
 ############ 게임 메인 루프 ############
+##1. 변수 선언
 running = True
 menu = True
 game = False
-reset = False
-#now = 0
 start = 0
 score = 0
 
@@ -881,8 +877,20 @@ level_time = 45000
 p1_inventory_key = 4
 p2_inventory_key = 1
 
+level1_bgm = True
+level2_bgm = True
+level3_bgm = True
+level4_bgm = True
+ending_bgm = True
+menu_bgm = True
+
+## 2. 게임 메인 루프
 while running:
+    ##1. 메인 메뉴
     if menu:
+        pygame.mixer.music.load('bnb_ocean.mp3')
+        pygame.mixer.music.play(-1)
+
         while (1):
             if main_menu() == 2:  # 게임 시작 선택
                 q = choose_character()
@@ -891,14 +899,13 @@ while running:
                 p1_image = d[1] #오른쪽 캐릭터 (player1)
                 break
             elif main_menu() == 3:  # 게임 방법 선택
-                if manual() == 1:  # 여기서 메뉴얼 함수 실행함
-                    pass  # 마우스로 메인메뉴 버튼 눌렀을때 1반환함, 밑에문장 계속 실행하고 와일문 반복 즉 다시 메인메뉴 함수 실행
+                if manual() == 1:
+                    pass
             elif main_menu() == 4:  # 랭킹 확인 선택
                 if ranking() == 1:
                     pass
         game = True
         menu = False
-        reset = True
 
         start_time = pygame.time.get_ticks() #게임 시작 시간
 
@@ -916,22 +923,21 @@ while running:
         if p1_image == 4: player = Player(WIDTH / 2 + 80, HEIGHT - 20, player4_img)
         if p1_image == 5: player = Player(WIDTH / 2 + 80, HEIGHT - 20, player5_img)
 
-
         all_sprites.add(player)
         all_sprites.add(player2)
 
         enemys = pygame.sprite.Group()
-        #enemyHPs = pygame.sprite.Group()
-        for i in range(10):
+        boss = Boss()
+        for i in range(12):
             make_new_enemy(level)
-
         bullets = pygame.sprite.Group()
         enemy_bullets = pygame.sprite.Group()
+        boss_bullets = pygame.sprite.Group()
         item3_bullets = pygame.sprite.Group()
         items = pygame.sprite.Group()
 
     clock.tick(FPS)
-
+    ##2. 게임 루프
     if game:
         now = pygame.time.get_ticks()
         for event in pygame.event.get():
@@ -939,17 +945,17 @@ while running:
                 pygame.quit()
                 quit()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:  # ESC키 눌리면
+                if event.key == pygame.K_ESCAPE:
                     pygame.quit()
                     quit()
-            if event.type == pygame.KEYDOWN:  # key down일때
-                if event.key == pygame.K_o:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_o: #player1 공격
                     player.shot_top()
                     score += 1
                 if event.key == pygame.K_p:
                     player.shot_bottom()
                     score += 1
-                if event.key == pygame.K_LEFT:
+                if event.key == pygame.K_LEFT: #player1 이동
                     player.speedx = -5
                 if event.key == pygame.K_RIGHT:
                     player.speedx = 5
@@ -958,13 +964,13 @@ while running:
                 if event.key == pygame.K_DOWN:
                     player.speedy = +5
 
-                if event.key == pygame.K_r:
+                if event.key == pygame.K_r: #player2 공격
                     player2.shot_top()
                     score += 1
                 if event.key == pygame.K_t:
                     player2.shot_bottom()
                     score += 1
-                if event.key == pygame.K_a:
+                if event.key == pygame.K_a: #player2 이동
                     player2.speedx = -5
                 if event.key == pygame.K_d:
                     player2.speedx = 5
@@ -973,19 +979,19 @@ while running:
                 if event.key == pygame.K_s:
                     player2.speedy = +5
 
-                if event.key == pygame.K_k: # SPACE 키로 아이템 인벤토리 조작
+                if event.key == pygame.K_k: #player1 인벤토리 조작
                     p1_inventory_key += 1
                     if p1_inventory_key > 6:
                         p1_inventory_key = 4
-                if event.key == pygame.K_f: # SPACE 키로 아이템 인벤토리 조작
+                if event.key == pygame.K_f: #player2 인벤토리 조작
                     p2_inventory_key += 1
                     if p2_inventory_key > 3:
                         p2_inventory_key = 1
 
-                if event.key == pygame.K_g: # ENTER 키를 누르면 지정된 칸의 아이템이 사용됨
-                    player2.item(p2_inventory_key)
-                if event.key == pygame.K_l: # ENTER 키를 누르면 지정된 칸의 아이템이 사용됨
+                if event.key == pygame.K_l: #player1 인벤토리 아이템 사용
                     player.item(p1_inventory_key - 3)
+                if event.key == pygame.K_g: #player2 인벤토리 아이템 사용
+                    player2.item(p2_inventory_key)
 
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_LEFT:
@@ -1006,36 +1012,71 @@ while running:
                 if event.key == pygame.K_s:
                     player2.speedy = 0
 
+        if level == 4:
+            all_sprites.add(boss)
+
         # 레벨 변경
-        if now - start_time > level_time: #임시 - 30초마다 레벨 변경
-            if level != 4:
+        if level < 4:
+            if now - start_time > level_time:  # 임시 - 30초마다 레벨 변경
                 nextlevel(now, level)
-            level += 1
-            score += 500 + 200 * level # 레벨이 올라갈 때마다 점수 추가
-            start_time = now + 2000
+                level += 1
+                score += 500 + 200 * level  # 레벨이 올라갈 때마다 점수 추가
+                start_time = now + 2000
+
+        # 단계별로 다른 배경음악 재생
+        if level1_bgm:
+            if level == 1:
+                pygame.mixer.init()
+                pygame.mixer.music.load('kart_forest.mp3')
+                pygame.mixer.music.play(-1)
+                level1_bgm = False
+        if level2_bgm:
+            if level == 2:
+                pygame.mixer.init()
+                pygame.mixer.music.load('bnb_kfc.mp3')
+                pygame.mixer.music.play(-1)
+                level2_bgm = False
+        if level3_bgm:
+            if level == 3:
+                pygame.mixer.init()
+                pygame.mixer.music.load('bnb_bulla.mp3')
+                pygame.mixer.music.play(-1)
+                level3_bgm = False
+        if level4_bgm:
+            if level == 4:
+                pygame.mixer.init()
+                pygame.mixer.music.load('bnb_octopus.mp3')
+                pygame.mixer.music.play(-1)
+                level4_bgm = False
+        if ending_bgm:
+            if level == 5:
+                pygame.mixer.init()
+                pygame.mixer.music.load('music.mp3')
+                pygame.mixer.music.play(-1)
+                ending_bgm = False
 
         # 업데이트
         all_sprites.update()
 
         #충돌 체크
-        hits = pygame.sprite.groupcollide(enemys, bullets, True, True)
+        hits = pygame.sprite.groupcollide(enemys, bullets, True, True) #1. 적 - 플레이어 총알
         for hit in hits:
+            hit_sound.play()
             make_new_enemy(level)
             score += random.randrange(20, 50)
             if random.random() > 0.7:
                 item = Item(hit.rect.center)
                 all_sprites.add(item)
                 items.add(item)
-
-        hits = pygame.sprite.groupcollide(enemys, item3_bullets, True, False) # item 3을 썼을 때 적들을 막아줌
+        hits = pygame.sprite.groupcollide(enemys, item3_bullets, True, False) #2. 적 - 아이템3
         for hit in hits:
+            hit_sound.play()
             make_new_enemy(level)
             score += random.randrange(20, 50)
-        hits = pygame.sprite.groupcollide(enemy_bullets, item3_bullets, True, False) # item 3을 썼을 때 적의 총알들을 막아줌
+        hits = pygame.sprite.groupcollide(enemy_bullets, item3_bullets, True, False) #3. 적 총알 - 아이템3
         for hit in hits:
             pass
-
-        hits = pygame.sprite.spritecollide(player, enemy_bullets, True)
+        hits = pygame.sprite.spritecollide(player, enemy_bullets, True) #4. 플레이어1 - 적 총알
         for hit in hits:
             player.HP -= 10
             if player.HP <= 0 and player.lives > 0:
@@ -1044,7 +1085,7 @@ while running:
             elif player.HP <= 0 and player.lives == 0:
                 player.HP = 0
                 player.lives = 0
-        hits = pygame.sprite.spritecollide(player2, enemy_bullets, True)
+        hits = pygame.sprite.spritecollide(player2, enemy_bullets, True) #5. 플레이어2 - 적 총알
         for hit in hits:
             player2.HP -= 10
             if player2.HP <= 0 and player2.lives > 0:
@@ -1053,8 +1094,7 @@ while running:
             elif player2.HP <= 0 and player2.lives == 0:
                 player2.HP = 0
                 player2.lives = 0
-
-        hits = pygame.sprite.spritecollide(player, enemys, True)
+        hits = pygame.sprite.spritecollide(player, enemys, True) #6. 플레이어1 - 적
         for hit in hits:
             player.HP -= 50
             if player.HP <= 0 and player.lives > 0:
@@ -1064,7 +1104,7 @@ while running:
                 player.HP = 0
                 player.lives = 0
             make_new_enemy(level)
-        hits = pygame.sprite.spritecollide(player2, enemys, True)
+        hits = pygame.sprite.spritecollide(player2, enemys, True) #7. 플레이어2 - 적
         for hit in hits:
             player2.HP -= 50
             player2.HP -= 20
@@ -1075,8 +1115,7 @@ while running:
                 player2.HP = 0
                 player2.lives = 0
             make_new_enemy(level)
-
-        hits = pygame.sprite.spritecollide(player, items, True)
+        hits = pygame.sprite.spritecollide(player, items, True) #8. 플레이어1 - 아이템
         for hit in hits:
             score += random.randrange(20, 40)
             if hit.type == 'item1':
@@ -1085,7 +1124,7 @@ while running:
                 player.item2 += 1
             if hit.type == 'item3':
                 player.item3 += 1
-        hits = pygame.sprite.spritecollide(player2, items, True)
+        hits = pygame.sprite.spritecollide(player2, items, True) #9. 플레이어2 - 아이템
         for hit in hits:
             score += random.randrange(20, 40)
             if hit.type == 'item1':
@@ -1095,41 +1134,99 @@ while running:
             if hit.type == 'item3':
                 player2.item3 += 1
 
-        # 게임 종료 조건
-        if player.lives == 0 and player.HP == 0:
-            player.kill()
+        # 레벨 4에서의 추가적인 충돌 체크
+        if level == 4:
+            hits = pygame.sprite.spritecollide(boss, bullets, True) #9. 보스 - 플레이어 총알
+            for hit in hits:
+                score += 40
+                boss.HP -= 6
+            hits = pygame.sprite.spritecollide(player, boss_bullets, True) #10. 플레이어1 - 보스 총알
+            for hit in hits:
+                player.HP -= 15
+                if player.HP <= 0 and player.lives > 0:
+                    player.HP = 100
+                    player.lives -= 1
+                elif player.HP <= 0 and player.lives == 0:
+                    player.HP = 0
+                    player.lives = 0
+            hits = pygame.sprite.spritecollide(player2, boss_bullets, True) #11. 플레이어2 - 보스 총알
+            for hit in hits:
+                player2.HP -= 15
+                if player2.HP <= 0 and player2.lives > 0:
+                    player2.HP = 100
+                    player2.lives -= 1
+                elif player2.HP <= 0 and player2.lives == 0:
+                    player2.HP = 0
+                    player2.lives = 0
+            hits = pygame.sprite.spritecollide(boss, item3_bullets, True) #12. 보스 - 아이템3
+            for hit in hits:
+                boss.HP -= 20
 
+            #13. 보스 - 플레이어1, 플레이어2
+            if player.rect.right >= boss.rect.left and player.rect.left <= boss.rect.right \
+                    and player.rect.bottom >= boss.rect.top and player.rect.top <= boss.rect.bottom:
+                player.rect.top = 270
+            if player2.rect.right >= boss.rect.left and player2.rect.left <= boss.rect.right \
+                    and player2.rect.bottom >= boss.rect.top and player2.rect.top <= boss.rect.bottom:
+                player2.rect.top = 270
+
+        # 플레이어 사망
+        if player.lives == 0 and player.HP == 0:
+            all_sprites.remove(player)
         if player2.lives == 0 and player2.HP == 0:
-            player2.kill()
+            all_sprites.remove(player2)
+
+        # 레벨 1~3 게임 종료
         if (player.lives == 0 and player.HP == 0) and \
                 (player2.lives <= 0 and player2.HP == 0):
             game = False
-            #now = pygame.time.get_ticks()
-            gameover(now) # 게임 오버 출력
+            gameover(now)
             saveranking(score)
-
             score = 0 # 점수, 레벨, 인벤토리 위치 표시 초기화
             level = 1
             p1_inventory_key = 4
             p2_inventory_key = 1
-        if level == 5:
+
+        # 보스전 게임 종료
+        if level == 4 and boss.HP < 0:
+            boss_die_sound.play()
+            all_sprites.remove(player)
+            all_sprites.remove(player2)
+            all_sprites.remove(boss)
+
             game = False
 
             endingCredit(now) #엔딩크레딧 출력
             saveranking(score)
+
+            level1_bgm = True
+            level2_bgm = True
+            level3_bgm = True
+            level4_bgm = True
+            ending_bgm = True
 
             score = 0  # 점수, 레벨, 인벤토리 위치 표시 초기화
             level = 1
             p1_inventory_key = 4
             p2_inventory_key = 1
 
-    if game == False: #수정 필요
-        #랭킹 입력
-        #saveranking(score)
+    ##3. 추가 기능
+    # 게임 종료시 다시 메뉴 출력
+    if game == False:
         menu = True
 
-    screen.blit(background_img, background_rect)
+    # 레벨마다 다른 배경그림
+    if level == 1:
+        screen.blit(background_img1, background_rect)
+    elif level == 2:
+        screen.blit(background_img2, background_rect)
+    elif level == 3:
+        screen.blit(background_img3, background_rect)
+    elif level == 4:
+        screen.blit(background_img4, background_rect)
 
+    ##4. 업데이트 & 그리기
+    # 화면에 그리기
     all_sprites.draw(screen)
 
     draw_text(screen, "SCORE: ", 20, WIDTH / 2 - 30, 30, BLACK)
@@ -1137,9 +1234,10 @@ while running:
     draw_HP(screen, 15, 15, player2.HP, BLUE)
     draw_HP(screen, WIDTH - 135, 15, player.HP, RED)
 
-    draw_inventory(p1_inventory_key, p2_inventory_key)
-    #draw_inventory(p2_inventory_key)
+    if level == 4:
+        draw_HP(screen, boss.rect.x + 30, boss.rect.top - 20, boss.HP, YELLOW)
 
+    draw_inventory(p1_inventory_key, p2_inventory_key)
 
     draw_item(player.item1, player.item2, player.item3, WIDTH -15 - shieldWIDHT, HEIGHT - 55) # player1 아이템 그리기
     draw_item(player2.item1, player2.item2, player2.item3, 15, HEIGHT - 55) # player2 아이템 그리기
@@ -1156,14 +1254,18 @@ while running:
     draw_text(screen, "LEVEL:  ", 20, WIDTH / 2 - 30, 5, BLACK)
     draw_text(screen, str(level), 20, WIDTH/2 + 30, 5, BLACK)
 
-    draw_text(screen, "TIME:    ", 20, WIDTH / 2 - 30, 55, BLACK)
-    if level_time - (now - start_time) > 4000 : # 남은 시간이 4초 이상이면 검정색으로 시간 표시
-        draw_text(screen, str("%0.2f" % float((level_time - (now - start_time))/ 1000)), 20, WIDTH / 2 + 30, 55, BLACK)
-    else: # 남은 이간이 4초 이하라면 빨간색 굵은 글씨로 시간 표시
-        draw_text(screen, str("%0.2f" % float((level_time - (now - start_time)) / 1000)), 20, WIDTH / 2 + 30, 55, WHITE)
-
-
+    if level < 4:
+        draw_text(screen, "TIME:    ", 20, WIDTH / 2 - 30, 55, BLACK)
+        if level_time - (now - start_time) > 4000:  # 남은 시간이 4초 이상이면 검정색으로 시간 표시
+            draw_text(screen, str("%0.2f" % float((level_time - (now - start_time)) / 1000)), 20, WIDTH / 2 + 30, 55,
+                      BLACK)
+        else:  # 남은 이간이 4초 이하라면 빨간색 굵은 글씨로 시간 표시
+            draw_text(screen, str("%0.2f" % float((level_time - (now - start_time)) / 1000)), 20, WIDTH / 2 + 30, 55,
+                      WHITE)
+    if level == 4:
+        draw_text(screen, "KILL THE BOSS", 22, WIDTH / 2 - 10, 55, BLACK)
 
     pygame.display.flip()
 
 pygame.quit()
+
