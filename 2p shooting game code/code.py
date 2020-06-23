@@ -214,15 +214,18 @@ class Player(pygame.sprite.Sprite):
 
     def item(self, inventory_key):
         if inventory_key == 1 and self.item1 != 0:
+            self.power_time = pygame.time.get_ticks()
             self.item1 -= 1
             if self.HP >= 50:
                 self.HP = 100
             else: self.HP += 50
         if inventory_key == 2 and self.item2 != 0:
+            self.power_time = pygame.time.get_ticks()
             self.item2 -= 1
             if self.power < 3:
                 self.power += 1
         if inventory_key == 3 and self.item3 != 0:
+            self.power_time = pygame.time.get_ticks()
             self.item3 -= 1
             bullet_item3 = Bullet(self.rect.centerx, self.rect.bottom, 3)
             all_sprites.add(bullet_item3)
